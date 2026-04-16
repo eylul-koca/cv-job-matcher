@@ -16,7 +16,18 @@ def ana():
 
 @app.route('/test')
 def test():
-    return send_file('C:/Users/Eylül/Desktop/CVAPI/test.html')
+    html_icerik = """
+<!DOCTYPE html>
+<html><body>
+<h1>🧠 CV Test</h1>
+<form action="/yukle" method="post" enctype="multipart/form-data">
+<input type="file" name="file" accept=".pdf">
+<button>Yükle</button>
+</form>
+</body>
+</html>
+"""
+    return html_icerik
 
 @app.route('/yukle', methods=['POST'])
 def yukle():
