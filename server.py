@@ -19,52 +19,116 @@ def test():
     return '''
 <!DOCTYPE html>
 <html>
-<body style="font-family:Arial;padding:20px">
-<h1>🧠 CV Test</h1>
-<hr>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CV Job Matcher</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:Arial; background:#f5f7fa; color:#333; }
+.container { max-width:800px; margin:0 auto; padding:20px; }
+h1 { text-align:center; color:#2c3e50; padding:30px 0; font-size:2em; }
+.card { background:white; border-radius:15px; padding:25px; margin:20px 0; box-shadow:0 2px 10px rgba(0,0,0,0.1); }
+.card h3 { color:#2c3e50; margin-bottom:15px; font-size:1.2em; }
+input[type=file] { padding:10px; border:2px dashed #3498db; border-radius:8px; width:100%; cursor:pointer; }
+textarea { width:100%; padding:12px; border:2px solid #e0e0e0; border-radius:8px; font-size:14px; resize:vertical; }
+.btn { background:linear-gradient(135deg,#3498db,#2980b9); color:white; border:none; padding:12px 30px; border-radius:8px; cursor:pointer; font-size:16px; width:100%; margin-top:10px; }
+.btn:hover { opacity:0.9; }
+.score-box { text-align:center; padding:30px; background:linear-gradient(135deg,#667eea,#764ba2); border-radius:15px; color:white; margin:20px 0; }
+.score-number { font-size:4em; font-weight:bold; }
+.score-label { font-size:1.2em; opacity:0.9; }
+.skill-tag { display:inline-block; padding:6px 12px; border-radius:20px; margin:4px; font-size:14px; }
+.skill-match { background:#2ecc71; color:white; }
+.skill-missing { background:#e74c3c; color:white; }
+.category-box { background:#f8f9fa; border-left:4px solid #3498db; padding:15px; margin:10px 0; border-radius:0 8px 8px 0; }
+.progress-bar { background:#e0e0e0; border-radius:10px; height:20px; margin:10px 0; overflow:hidden; }
+.progress-fill { height:100%; border-radius:10px; background:linear-gradient(135deg,#3498db,#2980b9); transition:width 1s; }
+.id-box { background:#e8f4fd; padding:10px; border-radius:8px; margin:10px 0; font-weight:bold; color:#2980b9; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🧠 CV Job Matcher</h1>
 
-<h3>📤 1. PDF Yükle</h3>
-<form id="yukle_form">
-  <input type="file" id="pdf_dosya" accept=".pdf">
-  <button type="button" onclick="pdfYukle()">Yükle</button>
-</form>
+<div class="card">
+<h3>📤 1. CV Yukle</h3>
+<input type="file" id="pdf_dosya" accept=".pdf">
+<button class="btn" onclick="pdfYukle()">📤 CV Yukle</button>
 <div id="yukle_sonuc"></div>
+</div>
 
-<hr>
+<div class="card">
+<h3>💼 2. Is Ilani Gir</h3>
+<textarea id="is_ilani" rows="5" placeholder="Is ilanini buraya yapistir..."></textarea>
+<button class="btn" onclick="eslesmeYap()">🎯 Analiz Et</button>
+<input type="hidden" id="esles_id">
+</div>
 
-<h3>🎯 2. Esles</h3>
-CV ID: <input id="esles_id" placeholder="abc123" style="width:200px;padding:5px">
-<br><br>
-Is ilani:<br>
-<textarea id="is_ilani" rows="4" style="width:400px;padding:5px">JavaScript, HTML, CSS, Git bilen developer ariyoruz</textarea>
-<br><br>
-<button type="button" onclick="eslesmeYap()" style="padding:10px;background:blue;color:white;cursor:pointer">
-  Esles
-</button>
-<div id="esles_sonuc" style="margin-top:20px;padding:20px;background:#f0f0f0"></div>
+<div id="sonuc_bolum" style="display:none">
+
+<div class="score-box">
+<div id="sonuc_emoji" style="font-size:2em">🎯</div>
+<div class="score-number" id="skor_sayi">0%</div>
+<div class="score-label" id="skor_yorum">Analiz ediliyor...</div>
+</div>
+
+<div class="card">
+<h3>📊 Uyum Orani</h3>
+<div class="progress-bar">
+<div class="progress-fill" id="progress" style="width:0%"></div>
+</div>
+<p id="progress_text" style="text-align:center;color:#666;margin-top:5px"></p>
+</div>
+
+<div class="card">
+<h3>✅ Eslesen Skilllar</h3>
+<div id="eslesen_skills"></div>
+</div>
+
+<div class="card">
+<h3>❌ Eksik Skilllar</h3>
+<div id="eksik_skills"></div>
+<div id="eksik_oneri" style="margin-top:15px"></div>
+</div>
+
+<div class="card">
+<h3>📋 Detayli Rapor</h3>
+<div id="detayli_rapor"></div>
+</div>
+
+</div>
+</div>
 
 <script>
+var cv_id = "";
+
 function pdfYukle() {
   var dosya = document.getElementById("pdf_dosya").files[0];
   if(!dosya) { alert("PDF sec!"); return; }
+  document.getElementById("yukle_sonuc").innerHTML = "<p>⏳ Yukleniyor...</p>";
   var form = new FormData();
   form.append("file", dosya);
   fetch("/yukle", {method:"POST", body:form})
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      document.getElementById("yukle_sonuc").innerHTML = "✅ ID: <b>" + data.id + "</b>";
+      cv_id = data.id;
       document.getElementById("esles_id").value = data.id;
+      document.getElementById("yukle_sonuc").innerHTML = 
+        "<div class=id-box>✅ CV Yuklendi! ID: " + data.id + "</div>";
+    })
+    .catch(function(e) {
+      document.getElementById("yukle_sonuc").innerHTML = "❌ Hata: " + e;
     });
 }
 
 function eslesmeYap() {
   var id = document.getElementById("esles_id").value;
   var ilan = document.getElementById("is_ilani").value;
-  if(!id) { alert("CV ID gir!"); return; }
+  if(!id) { alert("Once CV yukle!"); return; }
   if(!ilan) { alert("Is ilani gir!"); return; }
-  
-  document.getElementById("esles_sonuc").innerHTML = "⏳ Yukleniyor...";
-  
+  document.getElementById("sonuc_bolum").style.display = "block";
+  document.getElementById("skor_sayi").innerHTML = "⏳";
+  document.getElementById("skor_yorum").innerHTML = "Analiz ediliyor...";
   fetch("/esles", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
@@ -73,14 +137,57 @@ function eslesmeYap() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     var s = data.sonuc;
-    document.getElementById("esles_sonuc").innerHTML =
-      "<h2>" + s.yorum + "</h2>" +
-      "<h1 style='color:blue'>%" + s.skor + " Uyum</h1>" +
-      "<p><b>✅ Eslesen:</b> " + s.eslesen_skills.join(", ") + "</p>" +
-      "<p><b>❌ Eksik:</b> " + s.eksik_skills.join(", ") + "</p>";
+    var skor = s.skor;
+    var renk = skor >= 80 ? "#2ecc71" : skor >= 60 ? "#f39c12" : skor >= 40 ? "#e67e22" : "#e74c3c";
+    var emoji = skor >= 80 ? "🌟" : skor >= 60 ? "👍" : skor >= 40 ? "🤔" : "😟";
+    document.getElementById("sonuc_emoji").innerHTML = emoji;
+    document.getElementById("skor_sayi").innerHTML = "%" + skor;
+    document.getElementById("skor_yorum").innerHTML = s.yorum;
+    document.querySelector(".score-box").style.background = "linear-gradient(135deg," + renk + "," + renk + "99)";
+    document.getElementById("progress").style.width = skor + "%";
+    document.getElementById("progress_text").innerHTML = 
+      s.eslesen_skills.length + " / " + (s.eslesen_skills.length + s.eksik_skills.length) + " skill eslesti";
+    var eslesen = "";
+    s.eslesen_skills.forEach(function(skill) {
+      eslesen += "<span class='skill-tag skill-match'>✅ " + skill + "</span>";
+    });
+    document.getElementById("eslesen_skills").innerHTML = eslesen || "<p style='color:#999'>Eslesen skill bulunamadi</p>";
+    var eksik = "";
+    s.eksik_skills.forEach(function(skill) {
+      eksik += "<span class='skill-tag skill-missing'>❌ " + skill + "</span>";
+    });
+    document.getElementById("eksik_skills").innerHTML = eksik || "<p style='color:#2ecc71'>🎉 Tum skilllar eslesti!</p>";
+    var oneri = "";
+    if(s.eksik_skills.length > 0) {
+      oneri = "<div class='category-box'><b>💡 Oneriler:</b><ul style='margin-top:10px;padding-left:20px'>";
+      s.eksik_skills.forEach(function(skill) {
+        oneri += "<li>" + skill + " icin: <a href='https://www.google.com/search?q=" + skill + "+tutorial' target='_blank'>Google ara</a></li>";
+      });
+      oneri += "</ul></div>";
+    }
+    document.getElementById("eksik_oneri").innerHTML = oneri;
+    var rapor = "";
+    rapor += "<div class='category-box'><b>📊 CV Analizi:</b><br>";
+    rapor += "CV Skill: <b>" + data.cv_skills.length + "</b><br>";
+    rapor += "Is Ilani Skill: <b>" + data.is_skills.length + "</b><br>";
+    rapor += "Eslesen: <b>" + s.eslesen_skills.length + "</b><br>";
+    rapor += "Eksik: <b>" + s.eksik_skills.length + "</b></div>";
+    rapor += "<div class='category-box'><b>🎯 Sonuc:</b><br>";
+    if(skor >= 80) {
+      rapor += "✅ Bu pozisyon icin cok iyi bir adaysin! Hemen basvur!";
+    } else if(skor >= 60) {
+      rapor += "👍 Iyi bir aday profilin var. Eksik skilleri ogrenirsen daha guclu olursun.";
+    } else if(skor >= 40) {
+      rapor += "🤔 Orta duzey uyum var. Eksik skillere odaklan.";
+    } else {
+      rapor += "📚 Bu pozisyon icin daha fazla hazirlik gerekiyor.";
+    }
+    rapor += "</div>";
+    document.getElementById("detayli_rapor").innerHTML = rapor;
+    document.getElementById("sonuc_bolum").scrollIntoView({behavior:"smooth"});
   })
   .catch(function(e) {
-    document.getElementById("esles_sonuc").innerHTML = "❌ Hata: " + e;
+    alert("Hata: " + e);
   });
 }
 </script>
