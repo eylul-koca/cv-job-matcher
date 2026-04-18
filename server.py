@@ -431,11 +431,14 @@ function eslesmeYap() {
     var renk, emoji;
     if(skor >= 80) { renk = "linear-gradient(135deg,#2ecc71,#27ae60)";
 '''
-
 @app.route('/yukle', methods=['POST'])
 def yukle():
     dosya = request.files['file']
     dosya_id = str(uuid.uuid4())[:8]
+    
+    # Uploads klasörü oluştur
+    os.makedirs("uploads", exist_ok=True)
+    
     dosya_adi = f"uploads/{dosya_id}_{dosya.filename}"
     dosya.save(dosya_adi)
     return jsonify({
