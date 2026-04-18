@@ -17,7 +17,13 @@ def ana():
 @app.route('/upload', methods=['POST'])
 def upload():
     try:
+        if 'file' not in request.files:
+            return jsonify({"hata": "Dosya bulunamadı"}), 400
         dosya = request.files['file']
+        if dosya.filename == '':
+            return jsonify({"hata": "Dosya seçilmedi"}), 400
+        if not dosya.filename.lower().endswith('.pdf'):
+            return jsonify({"hata": "Sadece PDF dosyaları kabul edilir"}), 400
         dosya_id = str(uuid.uuid4())[:8]
         os.makedirs("uploads", exist_ok=True)
         dosya_adi = f"uploads/{dosya_id}_{dosya.filename}"
@@ -29,18 +35,24 @@ def upload():
 def pdf_oku(yol):
     metin = ""
     try:
-        with open(yol, 'rb') as f:
-            pdf = PyPDF2.PdfReader(f)
-            for sayfa in pdf.pages:
-                metin += sayfa.extract_text() + "\n"
-    except:
-        pass
-    try:
         with pdfplumber.open(yol) as pdf:
             for sayfa in pdf.pages:
-                metin += sayfa.extract_text() + "\n"
-    except:
+                icerik = sayfa.extract_text()
+                if icerik:
+                    metin += icerik + "\n"
+    except Exception:
         pass
+    # pdfplumber boş döndüyse PyPDF2 ile dene
+    if not metin.strip():
+        try:
+            with open(yol, 'rb') as f:
+                pdf = PyPDF2.PdfReader(f)
+                for sayfa in pdf.pages:
+                    icerik = sayfa.extract_text()
+                    if icerik:
+                        metin += icerik + "\n"
+        except Exception:
+            pass
     return metin.strip()
 
 @app.route('/match', methods=['POST'])
@@ -49,10 +61,16 @@ def match():
         veri = request.json
         cv_id = veri.get('cv_id')
         is_ilani = veri.get('is_ilani')
+        if not cv_id:
+            return jsonify({"hata": "CV kimliği eksik"}), 400
+        if not is_ilani:
+            return jsonify({"hata": "İş ilanı eksik"}), 400
         pdfler = glob.glob(f"uploads/{cv_id}*.pdf")
         if not pdfler:
-            return jsonify({"hata": "PDF bulunamadı"})
+            return jsonify({"hata": "PDF bulunamadı. Lütfen önce CV yükleyin."})
         metin = pdf_oku(pdfler[0])
+        if not metin:
+            return jsonify({"hata": "PDF okunamadı veya metin çıkarılamadı."})
         cv_skills = skill_bul(metin)["bulunan_skills"]
         is_skills = skill_bul(is_ilani)["bulunan_skills"]
         sonuc = esles(cv_skills, is_skills)
@@ -110,10 +128,16 @@ h1 { text-align:center; color:white; font-size:2.5em; margin-bottom:10px; text-s
   cursor: pointer;
   transition: all 0.3s ease;
   color: white;
+  display: block;
+  user-select: none;
 }
-.yukle-alani:hover { border-color:white; background:rgba(255,255,255,0.1); }
+.yukle-alani:hover, .yukle-alani.dragover {
+  border-color: white;
+  background: rgba(255,255,255,0.15);
+}
 .yukle-ikonu { font-size:3em; margin-bottom:10px; }
 .yukle-yazisi { font-size:1.1em; opacity:0.9; }
+.yukle-altyazi { color:rgba(255,255,255,0.6); font-size:0.85em; margin-top:5px; }
 textarea {
   width:100%; padding:15px;
   border:1px solid rgba(255,255,255,0.3);
@@ -121,6 +145,7 @@ textarea {
   resize:vertical;
   background:rgba(255,255,255,0.1);
   color:white; outline:none;
+  font-family: inherit;
 }
 textarea::placeholder { color:rgba(255,255,255,0.6); }
 textarea:focus { border-color:white; background:rgba(255,255,255,0.2); }
@@ -134,9 +159,16 @@ textarea:focus { border-color:white; background:rgba(255,255,255,0.2); }
   box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
 .buton:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(0,0,0,0.3); }
+.buton:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
 .id-kutusu {
   background:rgba(255,255,255,0.2);
   border:1px solid rgba(255,255,255,0.4);
+  border-radius:10px; padding:12px 15px;
+  color:white; margin-top:15px; font-weight:bold;
+}
+.hata-kutusu {
+  background:rgba(255,71,87,0.3);
+  border:1px solid rgba(255,71,87,0.6);
   border-radius:10px; padding:12px 15px;
   color:white; margin-top:15px; font-weight:bold;
 }
@@ -196,12 +228,16 @@ textarea:focus { border-color:white; background:rgba(255,255,255,0.2); }
 
   <div class="kart">
     <h3>📤 CV Yükle</h3>
-    <div class="yukle-alani" onclick="document.getElementById('pdf_girdi').click()">
-      <input type="file" id="pdf_girdi" accept=".pdf" onchange="cvYukle()" style="display:none">
+
+    <!-- GİZLİ INPUT - label dışında, body içinde -->
+    <input type="file" id="pdf_girdi" accept=".pdf" style="display:none">
+
+    <div class="yukle-alani" id="yukle_alani">
       <div class="yukle-ikonu">📄</div>
       <div class="yukle-yazisi">PDF CV yüklemek için tıklayın</div>
-      <div style="color:rgba(255,255,255,0.6);font-size:0.85em;margin-top:5px">veya sürükleyip bırakın</div>
+      <div class="yukle-altyazi">veya sürükleyip bırakın</div>
     </div>
+
     <div id="yukle_sonucu"></div>
   </div>
 
@@ -209,8 +245,7 @@ textarea:focus { border-color:white; background:rgba(255,255,255,0.2); }
     <h3>💼 İş İlanı Girin</h3>
     <textarea id="is_ilani" rows="6" placeholder="İş ilanını buraya yapıştırın...
 Örnek: Python, Docker, AWS bilen backend geliştirici arıyoruz. 3+ yıl deneyim gereklidir."></textarea>
-    <input type="hidden" id="cv_kimlik">
-    <button class="buton" onclick="eslesmeYap()">🎯 Analiz Et</button>
+    <button class="buton" id="analiz_buton" onclick="eslesmeYap()">🎯 Analiz Et</button>
   </div>
 
   <div id="sonuc_bolumu" style="display:none">
@@ -250,57 +285,118 @@ textarea:focus { border-color:white; background:rgba(255,255,255,0.2); }
 <script>
 var cv_kimlik = "";
 
-function cvYukle() {
-  var dosya = document.getElementById("pdf_girdi").files[0];
-  if(!dosya) return;
-  document.getElementById("yukle_sonucu").innerHTML = 
+// --- DOSYA YÜKLEME ---
+var yukleAlani = document.getElementById("yukle_alani");
+var pdfGirdi  = document.getElementById("pdf_girdi");
+
+// Tıklama ile dosya seç
+yukleAlani.addEventListener("click", function() {
+  pdfGirdi.value = "";   // aynı dosyayı tekrar seçebilmek için sıfırla
+  pdfGirdi.click();
+});
+
+// Input değişince yükle
+pdfGirdi.addEventListener("change", function() {
+  if (pdfGirdi.files.length > 0) {
+    dosyaYukle(pdfGirdi.files[0]);
+  }
+});
+
+// Drag & Drop
+yukleAlani.addEventListener("dragover", function(e) {
+  e.preventDefault();
+  yukleAlani.classList.add("dragover");
+});
+yukleAlani.addEventListener("dragleave", function() {
+  yukleAlani.classList.remove("dragover");
+});
+yukleAlani.addEventListener("drop", function(e) {
+  e.preventDefault();
+  yukleAlani.classList.remove("dragover");
+  var dosyalar = e.dataTransfer.files;
+  if (dosyalar.length > 0) {
+    dosyaYukle(dosyalar[0]);
+  }
+});
+
+function dosyaYukle(dosya) {
+  if (!dosya.name.toLowerCase().endsWith(".pdf")) {
+    document.getElementById("yukle_sonucu").innerHTML =
+      "<div class='hata-kutusu'>❌ Sadece PDF dosyaları kabul edilmektedir.</div>";
+    return;
+  }
+
+  document.getElementById("yukle_sonucu").innerHTML =
     "<div style='text-align:center;padding:20px;color:white'><div class='yukleniyor'></div><p style='margin-top:10px'>Yükleniyor...</p></div>";
+
   var form = new FormData();
   form.append("file", dosya);
-  fetch("/upload", {method:"POST", body:form})
+
+  fetch("/upload", { method: "POST", body: form })
     .then(function(r) { return r.json(); })
     .then(function(veri) {
+      if (veri.hata) {
+        document.getElementById("yukle_sonucu").innerHTML =
+          "<div class='hata-kutusu'>❌ " + veri.hata + "</div>";
+        return;
+      }
       cv_kimlik = veri.id;
-      document.getElementById("cv_kimlik").value = veri.id;
       document.getElementById("yukle_sonucu").innerHTML =
-        "<div class='id-kutusu'>✅ " + dosya.name + " yüklendi! Kimlik: " + veri.id + "</div>";
+        "<div class='id-kutusu'>✅ <b>" + veri.dosya + "</b> yüklendi! (ID: " + veri.id + ")</div>";
     })
     .catch(function(hata) {
-      document.getElementById("yukle_sonucu").innerHTML = 
-        "<div class='id-kutusu' style='background:rgba(255,71,87,0.3)'>❌ Hata: " + hata + "</div>";
+      document.getElementById("yukle_sonucu").innerHTML =
+        "<div class='hata-kutusu'>❌ Yükleme hatası: " + hata + "</div>";
     });
 }
 
+// --- ANALİZ ---
 function eslesmeYap() {
-  var kimlik = document.getElementById("cv_kimlik").value;
-  var ilan = document.getElementById("is_ilani").value;
-  if(!kimlik) { alert("Önce CV yükleyin!"); return; }
-  if(!ilan) { alert("İş ilanı girin!"); return; }
+  var ilan = document.getElementById("is_ilani").value.trim();
+  if (!cv_kimlik) { alert("Önce CV yükleyin!"); return; }
+  if (!ilan)      { alert("İş ilanı girin!");   return; }
+
+  var buton = document.getElementById("analiz_buton");
+  buton.disabled = true;
+  buton.textContent = "Analiz ediliyor...";
+
   document.getElementById("sonuc_bolumu").style.display = "block";
   document.getElementById("skor_sayisi").innerHTML = "<div class='yukleniyor'></div>";
   document.getElementById("skor_yorumu").innerHTML = "Analiz ediliyor...";
+
   fetch("/match", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({cv_id: kimlik, is_ilani: ilan})
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cv_id: cv_kimlik, is_ilani: ilan })
   })
   .then(function(r) { return r.json(); })
   .then(function(veri) {
-    var s = veri.sonuc;
+    buton.disabled = false;
+    buton.textContent = "🎯 Analiz Et";
+
+    if (veri.hata) {
+      alert("Hata: " + veri.hata);
+      document.getElementById("skor_sayisi").textContent = "!";
+      document.getElementById("skor_yorumu").textContent = veri.hata;
+      return;
+    }
+
+    var s    = veri.sonuc;
     var skor = s.skor;
     var renk, emoji;
-    if(skor >= 80) { renk = "linear-gradient(135deg
-        if(skor >= 80) { renk = "linear-gradient(135deg,#2ecc71,#27ae60)"; emoji = "🌟"; }
-    else if(skor >= 60) { renk = "linear-gradient(135deg,#f39c12,#e67e22)"; emoji = "👍"; }
-    else if(skor >= 40) { renk = "linear-gradient(135deg,#e67e22,#d35400)"; emoji = "🤔"; }
-    else { renk = "linear-gradient(135deg,#e74c3c,#c0392b)"; emoji = "😟"; }
 
-    document.getElementById("skor_emoji").innerHTML = emoji;
-    document.getElementById("skor_sayisi").innerHTML = "%" + skor;
-    document.getElementById("skor_yorumu").innerHTML = s.yorum;
+    if      (skor >= 80) { renk = "linear-gradient(135deg,#2ecc71,#27ae60)"; emoji = "🌟"; }
+    else if (skor >= 60) { renk = "linear-gradient(135deg,#f39c12,#e67e22)"; emoji = "👍"; }
+    else if (skor >= 40) { renk = "linear-gradient(135deg,#e67e22,#d35400)"; emoji = "🤔"; }
+    else                 { renk = "linear-gradient(135deg,#e74c3c,#c0392b)"; emoji = "😟"; }
+
+    document.getElementById("skor_emoji").textContent  = emoji;
+    document.getElementById("skor_sayisi").textContent = "%" + skor;
+    document.getElementById("skor_yorumu").textContent = s.yorum;
     document.getElementById("skor_kutusu").style.background = renk;
+
     document.getElementById("ilerleme_dolgu").style.width = skor + "%";
-    document.getElementById("ilerleme_yazisi").innerHTML = 
+    document.getElementById("ilerleme_yazisi").textContent =
       s.eslesen_skills.length + " / " + (s.eslesen_skills.length + s.eksik_skills.length) + " yetenek eşleşti";
 
     document.getElementById("istatistik_grid").innerHTML =
@@ -310,51 +406,51 @@ function eslesmeYap() {
       "<div class='istatistik-kutu'><div class='istatistik-sayi'>" + s.eksik_skills.length + "</div><div class='istatistik-etiket'>Eksik</div></div>";
 
     var eslesen = "";
-    s.eslesen_skills.forEach(function(yetenek) {
-      eslesen += "<span class='yetenek-etiketi eslesen'>✅ " + yetenek + "</span>";
+    s.eslesen_skills.forEach(function(y) {
+      eslesen += "<span class='yetenek-etiketi eslesen'>✅ " + y + "</span>";
     });
-    document.getElementById("eslesen_div").innerHTML = eslesen || "<p style='color:rgba(255,255,255,0.7)'>Eşleşen yetenek bulunamadı</p>";
+    document.getElementById("eslesen_div").innerHTML =
+      eslesen || "<p style='color:rgba(255,255,255,0.7)'>Eşleşen yetenek bulunamadı</p>";
 
     var eksik = "";
-    s.eksik_skills.forEach(function(yetenek) {
-      eksik += "<span class='yetenek-etiketi eksik'>❌ " + yetenek + "</span>";
+    s.eksik_skills.forEach(function(y) {
+      eksik += "<span class='yetenek-etiketi eksik'>❌ " + y + "</span>";
     });
-    document.getElementById("eksik_div").innerHTML = eksik || "<p style='color:#2ecc71'>🎉 Tüm yetenekler eşleşti!</p>";
+    document.getElementById("eksik_div").innerHTML =
+      eksik || "<p style='color:#2ecc71'>🎉 Tüm yetenekler eşleşti!</p>";
 
     var oneri = "";
-    if(s.eksik_skills.length > 0) {
+    if (s.eksik_skills.length > 0) {
       oneri = "<div class='rapor-kutusu' style='margin-top:15px'><b>💡 Öneriler:</b><ul style='margin-top:10px;padding-left:20px'>";
-      s.eksik_skills.forEach(function(yetenek) {
-        oneri += "<li style='margin:5px 0'>" + yetenek + " öğrenmek için: <a href='https://www.google.com/search?q=" + yetenek + "+tutorial' target='_blank'>Google'da Ara</a></li>";
+      s.eksik_skills.forEach(function(y) {
+        oneri += "<li style='margin:5px 0'>" + y +
+          " öğrenmek için: <a href='https://www.google.com/search?q=" +
+          encodeURIComponent(y + " tutorial") + "' target='_blank'>Google'da Ara</a></li>";
       });
       oneri += "</ul></div>";
     }
     document.getElementById("oneri_div").innerHTML = oneri;
 
-    var rapor = "";
-    rapor += "<div class='rapor-kutusu'><b>📊 Analiz Özeti:</b><br><br>";
+    var rapor = "<div class='rapor-kutusu'><b>📊 Analiz Özeti:</b><br><br>";
     rapor += "CV'nizdeki toplam yetenek: <b>" + veri.cv_skills.length + "</b><br>";
     rapor += "İş ilanındaki toplam yetenek: <b>" + veri.is_skills.length + "</b><br>";
     rapor += "Eşleşen yetenek sayısı: <b>" + s.eslesen_skills.length + "</b><br>";
     rapor += "Eksik yetenek sayısı: <b>" + s.eksik_skills.length + "</b></div>";
 
     rapor += "<div class='rapor-kutusu' style='margin-top:10px'><b>🎯 Sonuç ve Tavsiye:</b><br><br>";
-    if(skor >= 80) {
-      rapor += "✅ Bu pozisyon için mükemmel bir adaysınız! Hemen başvurun!";
-    } else if(skor >= 60) {
-      rapor += "👍 Bu pozisyon için iyi bir aday profiliniz var. Eksik yetenekleri öğrenirseniz daha güçlü olursunuz.";
-    } else if(skor >= 40) {
-      rapor += "🤔 Orta düzeyde uyum var. Eksik yeteneklere odaklanmanızı öneririz.";
-    } else {
-      rapor += "📚 Bu pozisyon için daha fazla hazırlık gerekiyor. Eksik yetenekleri öğrenin.";
-    }
+    if      (skor >= 80) rapor += "✅ Bu pozisyon için mükemmel bir adaysınız! Hemen başvurun!";
+    else if (skor >= 60) rapor += "👍 İyi bir aday profiliniz var. Eksik yetenekleri öğrenirseniz daha güçlü olursunuz.";
+    else if (skor >= 40) rapor += "🤔 Orta düzeyde uyum var. Eksik yeteneklere odaklanmanızı öneririz.";
+    else                 rapor += "📚 Bu pozisyon için daha fazla hazırlık gerekiyor. Eksik yetenekleri öğrenin.";
     rapor += "</div>";
 
     document.getElementById("rapor_div").innerHTML = rapor;
-    document.getElementById("sonuc_bolumu").scrollIntoView({behavior:"smooth"});
+    document.getElementById("sonuc_bolumu").scrollIntoView({ behavior: "smooth" });
   })
   .catch(function(hata) {
-    alert("Hata oluştu: " + hata);
+    buton.disabled = false;
+    buton.textContent = "🎯 Analiz Et";
+    alert("Bağlantı hatası: " + hata);
   });
 }
 </script>
@@ -364,3 +460,4 @@ function eslesmeYap() {
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+    
