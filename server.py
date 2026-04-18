@@ -51,14 +51,14 @@ textarea { width:100%; padding:12px; border:2px solid #e0e0e0; border-radius:8px
 <h1>🧠 CV Job Matcher</h1>
 
 <div class="card">
-<h3>📤 1. CV Yukle</h3>
+<h3>📤 1. CV Yükle</h3>
 <input type="file" id="pdf_dosya" accept=".pdf">
-<button class="btn" onclick="pdfYukle()">📤 CV Yukle</button>
+<button class="btn" onclick="pdfYukle()">📤 CV Yükle</button>
 <div id="yukle_sonuc"></div>
 </div>
 
 <div class="card">
-<h3>💼 2. Is Ilani Gir</h3>
+<h3>💼 2. İş ilanı Gir</h3>
 <textarea id="is_ilani" rows="5" placeholder="Is ilanini buraya yapistir..."></textarea>
 <button class="btn" onclick="eslesmeYap()">🎯 Analiz Et</button>
 <input type="hidden" id="esles_id">
@@ -73,7 +73,7 @@ textarea { width:100%; padding:12px; border:2px solid #e0e0e0; border-radius:8px
 </div>
 
 <div class="card">
-<h3>📊 Uyum Orani</h3>
+<h3>📊 Uyum Oranı</h3>
 <div class="progress-bar">
 <div class="progress-fill" id="progress" style="width:0%"></div>
 </div>
@@ -81,18 +81,18 @@ textarea { width:100%; padding:12px; border:2px solid #e0e0e0; border-radius:8px
 </div>
 
 <div class="card">
-<h3>✅ Eslesen Skilllar</h3>
+<h3>✅ Eşleşen Skiller</h3>
 <div id="eslesen_skills"></div>
 </div>
 
 <div class="card">
-<h3>❌ Eksik Skilllar</h3>
+<h3>❌ Eksik Skiller</h3>
 <div id="eksik_skills"></div>
 <div id="eksik_oneri" style="margin-top:15px"></div>
 </div>
 
 <div class="card">
-<h3>📋 Detayli Rapor</h3>
+<h3>📋 Detaylı Rapor</h3>
 <div id="detayli_rapor"></div>
 </div>
 
@@ -114,7 +114,7 @@ function pdfYukle() {
       cv_id = data.id;
       document.getElementById("esles_id").value = data.id;
       document.getElementById("yukle_sonuc").innerHTML = 
-        "<div class=id-box>✅ CV Yuklendi! ID: " + data.id + "</div>";
+        "<div class=id-box>✅ CV Yüklendi! ID: " + data.id + "</div>";
     })
     .catch(function(e) {
       document.getElementById("yukle_sonuc").innerHTML = "❌ Hata: " + e;
@@ -159,7 +159,7 @@ function eslesmeYap() {
     document.getElementById("eksik_skills").innerHTML = eksik || "<p style='color:#2ecc71'>🎉 Tum skilllar eslesti!</p>";
     var oneri = "";
     if(s.eksik_skills.length > 0) {
-      oneri = "<div class='category-box'><b>💡 Oneriler:</b><ul style='margin-top:10px;padding-left:20px'>";
+      oneri = "<div class='category-box'><b>💡 Öneriler:</b><ul style='margin-top:10px;padding-left:20px'>";
       s.eksik_skills.forEach(function(skill) {
         oneri += "<li>" + skill + " icin: <a href='https://www.google.com/search?q=" + skill + "+tutorial' target='_blank'>Google ara</a></li>";
       });
@@ -169,18 +169,18 @@ function eslesmeYap() {
     var rapor = "";
     rapor += "<div class='category-box'><b>📊 CV Analizi:</b><br>";
     rapor += "CV Skill: <b>" + data.cv_skills.length + "</b><br>";
-    rapor += "Is Ilani Skill: <b>" + data.is_skills.length + "</b><br>";
+    rapor += "İş İlanı Skill: <b>" + data.is_skills.length + "</b><br>";
     rapor += "Eslesen: <b>" + s.eslesen_skills.length + "</b><br>";
     rapor += "Eksik: <b>" + s.eksik_skills.length + "</b></div>";
-    rapor += "<div class='category-box'><b>🎯 Sonuc:</b><br>";
+    rapor += "<div class='category-box'><b>🎯 Sonuç:</b><br>";
     if(skor >= 80) {
-      rapor += "✅ Bu pozisyon icin cok iyi bir adaysin! Hemen basvur!";
+      rapor += "✅ Bu pozisyon için çok iyi bir adaysın! Hemen başvur!";
     } else if(skor >= 60) {
-      rapor += "👍 Iyi bir aday profilin var. Eksik skilleri ogrenirsen daha guclu olursun.";
+      rapor += "👍 İyi bir aday profilin var. Eksik skilleri öğrenirsen daha güçlü olursun.";
     } else if(skor >= 40) {
-      rapor += "🤔 Orta duzey uyum var. Eksik skillere odaklan.";
+      rapor += "🤔 Orta düzey uyum var. Eksik skillere odaklan.";
     } else {
-      rapor += "📚 Bu pozisyon icin daha fazla hazirlik gerekiyor.";
+      rapor += "📚 Bu pozisyon için daha fazla hazırlık gerekiyor.";
     }
     rapor += "</div>";
     document.getElementById("detayli_rapor").innerHTML = rapor;
@@ -272,4 +272,3 @@ def eslesme():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
-    
